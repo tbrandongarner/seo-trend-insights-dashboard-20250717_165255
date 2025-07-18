@@ -1,0 +1,150 @@
+const now = Date.now()
+    for (const [key, entry] of this.cache) {
+      if (entry.expiry <= now) {
+        this.cache.delete(key)
+      }
+    }
+  }
+
+  get(key: string): any | null {
+    this.pruneExpired()
+    const entry = this.cache.get(key)
+    if (!entry) {
+      return null
+    }
+    // refresh recency
+    this.cache.delete(key)
+    this.cache.set(key, entry)
+    return entry.data
+  }
+
+  set(key: string, data: any, ttl: number): void {
+    this.pruneExpired()
+    if (this.cache.has(key)) {
+      this.cache.delete(key)
+    } else if (this.cache.size >= this.maxSize) {
+      const oldestKey = this.cache.keys().next().value
+      this.cache.delete(oldestKey)
+    }
+    const expiry = Date.now() + ttl
+    this.cache.set(key, { data, expiry })
+  }
+
+  delete(key: string): void {
+    this.cache.delete(key)
+  }
+}
+
+function stableStringify(obj: any): string {
+  if (obj === null || typeof obj !== 'object') {
+    return JSON.stringify(obj)
+  }
+  if (Array.isArray(obj)) {
+    const mapped = obj.map(item => stableStringify(item))
+    return `[${mapped.join(',')}]`
+  }
+  const keys = Object.keys(obj).sort()
+  const mapped = keys.map(key => `"${key}":${stableStringify(obj[key])}`)
+  return `{${mapped.join(',')}}`
+}
+
+function assertDefined(value: string, name: string): void {
+  if (!value) {
+    throw new Error(`${name} is not defined or empty`)
+  }
+}
+
+function wrapAxiosError(error: any, context: string): never {
+  const status = error.response?.status
+  const responseData = error.response?.data
+  const messageParts = [context, error.message]
+  if (status !== undefined) {
+    messageParts.push(`status=${status}`)
+  }
+  if (responseData !== undefined) {
+    messageParts.push(`response=${JSON.stringify(responseData)}`)
+  }
+  const msg = messageParts.join(' | ')
+  console.error(msg)
+  throw new Error(msg)
+}
+
+const MAX_CACHE_ENTRIES = 1000
+const cache = new InMemoryCache(MAX_CACHE_ENTRIES)
+
+const DEFAULT_TTL = 1000 * 60 * 5 // 5 minutes
+const SEO_TRENDS_TTL = 1000 * 60 * 15 // 15 minutes
+const GA_TTL = DEFAULT_TTL
+const SC_TTL = DEFAULT_TTL
+
+const SEO_TRENDS_URL = process.env.REACT_APP_SEO_TRENDS_API_URL || ''
+const SEO_TRENDS_API_KEY = process.env.REACT_APP_SEO_TRENDS_API_KEY || ''
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || ''
+
+export function clearCache(key: string): void {
+  cache.delete(key)
+}
+
+export async function fetchSeoTrends(params: TrendFetchParams): Promise<TrendData[]> {
+  assertDefined(SEO_TRENDS_URL, 'SEO Trends API URL')
+  const cacheKey = `seoTrends:${stableStringify(params)}`
+  const cached = cache.get(cacheKey)
+  if (cached) {
+    return cached as TrendData[]
+  }
+  try {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (SEO_TRENDS_API_KEY) {
+      headers['Authorization'] = `Bearer ${SEO_TRENDS_API_KEY}`
+    }
+    const url = `${SEO_TRENDS_URL.replace(/\/+$/, '')}/trends`
+    const response: AxiosResponse<TrendData[]> = await axios.post(url, params, { headers })
+    const data = response.data
+    cache.set(cacheKey, data, SEO_TRENDS_TTL)
+    return data
+  } catch (error: any) {
+    wrapAxiosError(error, 'Error fetching SEO trends')
+  }
+}
+
+export async function fetchGoogleAnalyticsData(
+  viewId: string,
+  params: AnalyticsParams
+): Promise<AnalyticsData> {
+  assertDefined(BACKEND_URL, 'Backend URL')
+  const cacheKey = `ga:${viewId}:${stableStringify(params)}`
+  const cached = cache.get(cacheKey)
+  if (cached) {
+    return cached as AnalyticsData
+  }
+  try {
+    const url = `${BACKEND_URL.replace(/\/+$/, '')}/api/google-analytics`
+    const response: AxiosResponse<AnalyticsData> = await axios.post(url, { viewId, ...params })
+    const data = response.data
+    cache.set(cacheKey, data, GA_TTL)
+    return data
+  } catch (error: any) {
+    wrapAxiosError(error, 'Error fetching Google Analytics data')
+  }
+}
+
+export async function fetchSearchConsoleData(
+  siteUrl: string,
+  params: SearchConsoleParams
+): Promise<SearchConsoleData> {
+  assertDefined(BACKEND_URL, 'Backend URL')
+  const cacheKey = `sc:${siteUrl}:${stableStringify(params)}`
+  const cached = cache.get(cacheKey)
+  if (cached) {
+    return cached as SearchConsoleData
+  }
+  try {
+    const url = `${BACKEND_URL.replace(/\/+$/, '')}/api/search-console`
+    const response: AxiosResponse<SearchConsoleData> = await axios.post(url, { siteUrl, ...params })
+    const data = response.data
+    cache.set(cacheKey, data, SC_TTL)
+    return data
+  } catch (error: any) {
+    wrapAxiosError(error, 'Error fetching Search Console data')
+  }
+}

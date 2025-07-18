@@ -1,0 +1,29 @@
+function setupGlobalErrorHandler() {
+  window.addEventListener('error', event => {
+    console.error('Global error caught:', event.error || event.message);
+  });
+  window.addEventListener('unhandledrejection', event => {
+    console.error('Unhandled promise rejection:', event.reason);
+  });
+}
+
+function renderApp() {
+  const container = document.getElementById('root');
+  if (!container) {
+    console.error('Root container not found');
+    return;
+  }
+  const root = createRoot(container);
+  root.render(
+    <React.StrictMode>
+      <App />
+    </React.StrictMode>
+  );
+}
+
+function main() {
+  setupGlobalErrorHandler();
+  renderApp();
+}
+
+main();

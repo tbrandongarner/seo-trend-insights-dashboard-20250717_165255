@@ -1,0 +1,160 @@
+export default function Authentication(): JSX.Element {
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [providers, setProviders] = useState<string[]>([])
+  const [loadingProviders, setLoadingProviders] = useState(false)
+  const [loadingLogin, setLoadingLogin] = useState(false)
+  const [loadingOAuth, setLoadingOAuth] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const fetchOAuthProviders = useCallback(async (): Promise<string[]> => {
+    setLoadingProviders(true)
+    setError(null)
+    try {
+      const response = await fetch('/api/auth/providers')
+      if (!response.ok) {
+        throw new Error(`Error fetching providers: ${response.statusText}`)
+      }
+      const text = await response.text()
+      let data: unknown
+      try {
+        data = JSON.parse(text)
+      } catch {
+        throw new Error('Invalid JSON received for OAuth providers')
+      }
+      if (
+        typeof data !== 'object' ||
+        data === null ||
+        !('providers' in data) ||
+        !Array.isArray((data as any).providers)
+      ) {
+        throw new Error('Malformed providers data')
+      }
+      const provs = (data as any).providers as string[]
+      setProviders(provs)
+      return provs
+    } finally {
+      setLoadingProviders(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchOAuthProviders().catch(err =>
+      setError(err instanceof Error ? err.message : 'Failed to load providers')
+    )
+  }, [fetchOAuthProviders])
+
+  async function handleEmailLogin(email: string, password: string): Promise<void> {
+    setLoadingLogin(true)
+    setError(null)
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      })
+      if (!response.ok) {
+        let errorMessage = 'Login failed'
+        try {
+          const text = await response.text()
+          const errData = JSON.parse(text)
+          if (errData && typeof errData.message === 'string') {
+            errorMessage = errData.message
+          }
+        } catch {
+          // ignore parse errors
+        }
+        throw new Error(errorMessage)
+      }
+      window.location.href = '/dashboard'
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Login failed')
+    } finally {
+      setLoadingLogin(false)
+    }
+  }
+
+  const handleOAuthLogin = useCallback(async (provider: string): Promise<void> => {
+    setLoadingOAuth(true)
+    setError(null)
+    try {
+      const response = await fetch(`/api/auth/oauth/${provider}`)
+      if (!response.ok) {
+        throw new Error(`OAuth login failed: ${response.statusText}`)
+      }
+      const text = await response.text()
+      let data: unknown
+      try {
+        data = JSON.parse(text)
+      } catch {
+        throw new Error('Invalid JSON received for OAuth login')
+      }
+      if (
+        typeof data !== 'object' ||
+        data === null ||
+        typeof (data as any).url !== 'string'
+      ) {
+        throw new Error('Malformed OAuth login response')
+      }
+      window.location.assign((data as any).url)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'OAuth login failed')
+    } finally {
+      setLoadingOAuth(false)
+    }
+  }, [])
+
+  return (
+    <div className="auth-container">
+      <h2>Login</h2>
+      {error && <div className="error">{error}</div>}
+      <form
+        onSubmit={e => {
+          e.preventDefault()
+          handleEmailLogin(email, password)
+        }}
+      >
+        <div className="form-group">
+          <label htmlFor="email">Email</label>
+          <input
+            id="email"
+            type="email"
+            value={email}
+            onChange={e => setEmail(e.currentTarget.value)}
+            required
+          />
+        </div>
+        <div className="form-group">
+          <label htmlFor="password">Password</label>
+          <input
+            id="password"
+            type="password"
+            value={password}
+            onChange={e => setPassword(e.currentTarget.value)}
+            required
+          />
+        </div>
+        <button type="submit" disabled={loadingLogin}>
+          {loadingLogin ? 'Logging in...' : 'Login'}
+        </button>
+      </form>
+      <div className="oauth-section">
+        <h3>Or login with</h3>
+        {loadingProviders ? (
+          <div>Loading providers...</div>
+        ) : (
+          providers.map(provider => (
+            <button
+              key={provider}
+              type="button"
+              disabled={loadingProviders || loadingOAuth}
+              onClick={() => handleOAuthLogin(provider)}
+            >
+              {loadingOAuth ? `${provider.charAt(0).toUpperCase() + provider.slice(1)}...` : provider.charAt(0).toUpperCase() + provider.slice(1)}
+            </button>
+          ))
+        )}
+      </div>
+    </div>
+  )
+}

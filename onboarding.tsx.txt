@@ -1,0 +1,284 @@
+const NICHES = [
+  'E-commerce',
+  'Technology',
+  'Health & Wellness',
+  'Finance',
+  'Travel',
+  'Education',
+  'Food & Beverage',
+  'Real Estate'
+] as const;
+
+const OAUTH_SERVICES = ['googleAnalytics', 'searchConsole'] as const;
+type OAuthService = typeof OAUTH_SERVICES[number];
+
+interface ProfileData {
+  name: string;
+  email: string;
+  company?: string;
+}
+
+type Step = 'profile' | 'niche' | 'oauth' | 'done';
+
+export default function Onboarding(): JSX.Element {
+  const [step, setStep] = useState<Step>('profile');
+  const [profileData, setProfileData] = useState<ProfileData | null>(null);
+  const [selectedNiche, setSelectedNiche] = useState<string>('');
+  const [connectedServices, setConnectedServices] = useState<Record<OAuthService, boolean>>({
+    googleAnalytics: false,
+    searchConsole: false
+  });
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string>('');
+
+  const completeOAuthFlow = useCallback(
+    async (code: string, service: OAuthService): Promise<void> => {
+      setLoading(true);
+      setError('');
+      try {
+        const res = await fetch('/api/oauth/complete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ service, code })
+        });
+        if (!res.ok) {
+          const errText = await res.text();
+          throw new Error(errText || 'Failed to complete OAuth');
+        }
+        setConnectedServices(prev => ({ ...prev, [service]: true }));
+        const url = new URL(window.location.href);
+        url.searchParams.delete('code');
+        url.searchParams.delete('state');
+        window.history.replaceState({}, document.title, url.toString());
+      } catch (err: any) {
+        setError(err.message || 'An unexpected error occurred');
+      } finally {
+        setLoading(false);
+      }
+    },
+    []
+  );
+
+  const initiateOAuthFlow = useCallback(
+    async (service: OAuthService): Promise<void> => {
+      setLoading(true);
+      setError('');
+      try {
+        const res = await fetch('/api/oauth/initiate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ service })
+        });
+        if (!res.ok) {
+          const errText = await res.text();
+          throw new Error(errText || 'Failed to initiate OAuth');
+        }
+        const { authUrl } = await res.json();
+        window.location.href = authUrl;
+      } catch (err: any) {
+        setError(err.message || 'An unexpected error occurred');
+        setLoading(false);
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    const state = params.get('state') as OAuthService | null;
+    if (code && state && OAUTH_SERVICES.includes(state)) {
+      completeOAuthFlow(code, state);
+    }
+  }, [completeOAuthFlow]);
+
+  const handleProfileSetup = useCallback(
+    async (data: ProfileData): Promise<void> => {
+      setLoading(true);
+      setError('');
+      try {
+        const res = await fetch('/api/profile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+        if (!res.ok) {
+          const errText = await res.text();
+          throw new Error(errText || 'Failed to save profile');
+        }
+        setProfileData(data);
+        setStep('niche');
+      } catch (err: any) {
+        setError(err.message || 'An unexpected error occurred');
+      } finally {
+        setLoading(false);
+      }
+    },
+    []
+  );
+
+  const handleNicheSelection = useCallback(
+    async (niche: string): Promise<void> => {
+      setLoading(true);
+      setError('');
+      try {
+        const res = await fetch('/api/niche', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ niche })
+        });
+        if (!res.ok) {
+          const errText = await res.text();
+          throw new Error(errText || 'Failed to save niche');
+        }
+        setSelectedNiche(niche);
+        setStep('oauth');
+      } catch (err: any) {
+        setError(err.message || 'An unexpected error occurred');
+      } finally {
+        setLoading(false);
+      }
+    },
+    []
+  );
+
+  return (
+    <div className="onboarding-container">
+      {step === 'profile' && (
+        <ProfileStep loading={loading} error={error} onSubmit={handleProfileSetup} />
+      )}
+      {step === 'niche' && (
+        <NicheStep
+          loading={loading}
+          error={error}
+          niches={NICHES}
+          selectedNiche={selectedNiche}
+          onSelect={handleNicheSelection}
+        />
+      )}
+      {step === 'oauth' && (
+        <OAuthStep
+          loading={loading}
+          error={error}
+          services={OAUTH_SERVICES}
+          connectedServices={connectedServices}
+          onConnect={initiateOAuthFlow}
+          onFinish={() => setStep('done')}
+        />
+      )}
+      {step === 'done' && <DoneStep />}
+    </div>
+  );
+}
+
+const ProfileStep: React.FC<{
+  loading: boolean;
+  error: string;
+  onSubmit: (data: ProfileData) => Promise<void>;
+}> = ({ loading, error, onSubmit }) => {
+  const [name, setName] = useState<string>('');
+  const [email, setEmail] = useState<string>('');
+  const [company, setCompany] = useState<string>('');
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    onSubmit({ name, email, company: company || undefined });
+  };
+  return (
+    <form onSubmit={handleSubmit} className="onboarding-form">
+      <h2>Set Up Your Profile</h2>
+      {error && <div className="error">{error}</div>}
+      <label>
+        Name
+        <input value={name} onChange={e => setName(e.target.value)} required />
+      </label>
+      <label>
+        Email
+        <input
+          type="email"
+          value={email}
+          onChange={e => setEmail(e.target.value)}
+          required
+        />
+      </label>
+      <label>
+        Company
+        <input value={company} onChange={e => setCompany(e.target.value)} />
+      </label>
+      <button type="submit" disabled={loading}>
+        {loading ? 'Saving...' : 'Next'}
+      </button>
+    </form>
+  );
+};
+
+const NicheStep: React.FC<{
+  loading: boolean;
+  error: string;
+  niches: readonly string[];
+  selectedNiche: string;
+  onSelect: (niche: string) => Promise<void>;
+}> = ({ loading, error, niches, selectedNiche, onSelect }) => {
+  return (
+    <div className="onboarding-step">
+      <h2>Select Your Niche</h2>
+      {error && <div className="error">{error}</div>}
+      <ul className="niche-list">
+        {niches.map(n => (
+          <li key={n}>
+            <button
+              onClick={() => onSelect(n)}
+              disabled={loading}
+              className={n === selectedNiche ? 'selected' : ''}
+            >
+              {n}
+            </button>
+          </li>
+        ))}
+      </ul>
+      {loading && <div className="loading">Saving...</div>}
+    </div>
+  );
+};
+
+const OAuthStep: React.FC<{
+  loading: boolean;
+  error: string;
+  services: readonly OAuthService[];
+  connectedServices: Record<OAuthService, boolean>;
+  onConnect: (service: OAuthService) => Promise<void>;
+  onFinish: () => void;
+}> = ({ loading, error, services, connectedServices, onConnect, onFinish }) => {
+  const allConnected = services.every(s => connectedServices[s]);
+  return (
+    <div className="onboarding-step">
+      <h2>Connect Your Accounts</h2>
+      {error && <div className="error">{error}</div>}
+      <ul className="oauth-list">
+        {services.map(service => (
+          <li key={service}>
+            <button
+              onClick={() => onConnect(service)}
+              disabled={loading || connectedServices[service]}
+            >
+              {connectedServices[service]
+                ? `Connected to ${service}`
+                : `Connect to ${service}`}
+            </button>
+          </li>
+        ))}
+      </ul>
+      {allConnected && (
+        <button onClick={onFinish} className="finish-button">
+          Finish Onboarding
+        </button>
+      )}
+    </div>
+  );
+};
+
+const DoneStep: React.FC = () => (
+  <div className="onboarding-complete">
+    <h2>You're All Set!</h2>
+    <p>Thank you for setting up your account. Redirecting to your dashboard...</p>
+  </div>
+);

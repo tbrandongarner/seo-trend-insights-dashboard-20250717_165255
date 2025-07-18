@@ -1,0 +1,75 @@
+const Container = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 80vh;
+  text-align: center;
+  padding: 0 1rem;
+`
+
+const Title = styled.h1`
+  font-size: 2.5rem;
+  margin-bottom: 1rem;
+`
+
+const Message = styled.p`
+  font-size: 1.125rem;
+  margin-bottom: 2rem;
+`
+
+const ButtonGroup = styled.div`
+  display: flex;
+  gap: 1rem;
+`
+
+const BackButton = styled.button`
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+  background-color: #f5f5f5;
+  cursor: pointer;
+`
+
+const HomeButton = styled.button`
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  border-radius: 4px;
+  border: none;
+  background-color: #007bff;
+  color: #fff;
+  cursor: pointer;
+`
+
+export default function AccessDenied(): JSX.Element {
+  const navigate = useNavigate()
+
+  const handleGoBack = (): void => {
+    if (window.history.length > 1) {
+      navigate(-1)
+    } else {
+      navigate('/')
+    }
+  }
+
+  return (
+    <>
+      <Helmet>
+        <title>Access Denied | SEO Trend Insights Dashboard</title>
+      </Helmet>
+      <Container className="access-denied">
+        <Title>Access Denied</Title>
+        <Message>You do not have permission to view this page.</Message>
+        <ButtonGroup>
+          <BackButton type="button" onClick={handleGoBack}>
+            Go Back
+          </BackButton>
+          <HomeButton type="button" onClick={() => navigate('/')}>
+            Home
+          </HomeButton>
+        </ButtonGroup>
+      </Container>
+    </>
+  )
+}

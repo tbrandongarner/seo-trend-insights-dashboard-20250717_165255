@@ -1,0 +1,164 @@
+export default function AlertSettings(): JSX.Element {
+  const [config, setConfig] = useState<AlertConfig>({ enabled: false, webhookUrl: '' })
+  const [loading, setLoading] = useState({
+    initial: true,
+    saving: false,
+    testing: false,
+    sending: false,
+  })
+
+  useEffect(() => {
+    const controller = new AbortController()
+    async function fetchConfig() {
+      try {
+        const response = await fetch('/api/alert-settings', { signal: controller.signal })
+        if (!response.ok) throw new Error('Failed to load alert settings')
+        const data: AlertConfig = await response.json()
+        setConfig(data)
+      } catch (error) {
+        if (error.name !== 'AbortError') {
+          console.error(error)
+          toast.error('Error fetching alert settings')
+        }
+      } finally {
+        setLoading(prev => ({ ...prev, initial: false }))
+      }
+    }
+    fetchConfig()
+    return () => {
+      controller.abort()
+    }
+  }, [])
+
+  const isValidUrl = useMemo(() => {
+    if (!config.webhookUrl) return false
+    try {
+      new URL(config.webhookUrl)
+      return true
+    } catch {
+      return false
+    }
+  }, [config.webhookUrl])
+
+  const handleAlertConfigChange = useCallback((newConfig: AlertConfig): void => {
+    setConfig(newConfig)
+  }, [])
+
+  const saveAlertSettings = useCallback(
+    async (settings: AlertConfig): Promise<void> => {
+      setLoading(prev => ({ ...prev, saving: true }))
+      try {
+        const response = await fetch('/api/alert-settings', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(settings),
+        })
+        if (!response.ok) throw new Error('Save failed')
+        toast.success('Settings saved successfully')
+      } catch (error) {
+        console.error(error)
+        toast.error('Error saving settings')
+      } finally {
+        setLoading(prev => ({ ...prev, saving: false }))
+      }
+    },
+    []
+  )
+
+  const testWebhook = useCallback(
+    async (url: string): Promise<void> => {
+      setLoading(prev => ({ ...prev, testing: true }))
+      try {
+        const response = await fetch('/api/alert-settings/test-webhook', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url }),
+        })
+        if (!response.ok) throw new Error('Test webhook failed')
+        toast.success('Webhook test successful')
+      } catch (error) {
+        console.error(error)
+        toast.error('Webhook test failed')
+      } finally {
+        setLoading(prev => ({ ...prev, testing: false }))
+      }
+    },
+    []
+  )
+
+  const sendTestAlert = useCallback(
+    async (settings: AlertConfig): Promise<void> => {
+      setLoading(prev => ({ ...prev, sending: true }))
+      try {
+        const response = await fetch('/api/alert-settings/send-test', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(settings),
+        })
+        if (!response.ok) throw new Error('Send test alert failed')
+        toast.success('Test alert sent successfully')
+      } catch (error) {
+        console.error(error)
+        toast.error('Test alert failed')
+      } finally {
+        setLoading(prev => ({ ...prev, sending: false }))
+      }
+    },
+    []
+  )
+
+  if (loading.initial) {
+    return <div>Loading alert settings...</div>
+  }
+
+  return (
+    <div className="alert-settings">
+      <h2>Alert Settings</h2>
+      <div>
+        <label>
+          <input
+            type="checkbox"
+            checked={config.enabled}
+            onChange={e =>
+              handleAlertConfigChange({ ...config, enabled: e.target.checked })
+            }
+          />
+          Enable Alerts
+        </label>
+      </div>
+      <div>
+        <label>
+          Webhook URL
+          <input
+            type="text"
+            value={config.webhookUrl}
+            onChange={e =>
+              handleAlertConfigChange({ ...config, webhookUrl: e.target.value })
+            }
+            placeholder="https://your-webhook-url"
+          />
+        </label>
+      </div>
+      <div className="alert-settings-buttons">
+        <button
+          onClick={() => saveAlertSettings(config)}
+          disabled={loading.saving || !isValidUrl}
+        >
+          {loading.saving ? 'Saving...' : 'Save Settings'}
+        </button>
+        <button
+          onClick={() => testWebhook(config.webhookUrl)}
+          disabled={loading.testing || !config.enabled || !isValidUrl}
+        >
+          {loading.testing ? 'Testing...' : 'Test Webhook'}
+        </button>
+        <button
+          onClick={() => sendTestAlert(config)}
+          disabled={loading.sending || !config.enabled}
+        >
+          {loading.sending ? 'Sending...' : 'Send Test Alert'}
+        </button>
+      </div>
+    </div>
+  )
+}

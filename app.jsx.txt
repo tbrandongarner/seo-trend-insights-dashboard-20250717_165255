@@ -1,0 +1,59 @@
+const LoginPage = lazy(() => import('./pages/LoginPage'))
+const DashboardPage = lazy(() => import('./pages/DashboardPage'))
+const SettingsPage = lazy(() => import('./pages/SettingsPage'))
+const NotFoundPage = lazy(() => import('./pages/NotFoundPage'))
+
+function handleRouteChange(path) {
+  if (window.gtag) {
+    window.gtag('config', process.env.REACT_APP_GA_TRACKING_ID, { page_path: path })
+  }
+}
+
+function renderRoutes() {
+  return (
+    <Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route
+        path="/"
+        element={
+          <PrivateRoute>
+            <DashboardPage />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/settings"
+        element={
+          <PrivateRoute>
+            <SettingsPage />
+          </PrivateRoute>
+        }
+      />
+      <Route path="*" element={<NotFoundPage />} />
+    </Routes>
+  )
+}
+
+function RouteChangeTracker() {
+  const location = useLocation()
+  useEffect(() => {
+    handleRouteChange(location.pathname + location.search)
+  }, [location])
+  return null
+}
+
+function PrivateRoute({ children }) {
+  const isAuthenticated = Boolean(localStorage.getItem('authToken'))
+  return isAuthenticated ? children : <Navigate to="/login" replace />
+}
+
+export default function App() {
+  return (
+    <Router>
+      <RouteChangeTracker />
+      <Suspense fallback={<div>Loading...</div>}>
+        {renderRoutes()}
+      </Suspense>
+    </Router>
+  )
+}

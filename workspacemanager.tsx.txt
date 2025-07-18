@@ -1,0 +1,221 @@
+const AVAILABLE_ROLES = ['admin', 'editor', 'viewer']
+
+export default function WorkspaceManager(): JSX.Element {
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([])
+  const [loading, setLoading] = useState(false)
+  const [createLoading, setCreateLoading] = useState(false)
+  const [assigningState, setAssigningState] = useState<{ [workspaceId: string]: boolean }>({})
+  const [removingState, setRemovingState] = useState<{ [workspaceId: string]: { [userId: string]: boolean } }>({})
+  const [newWorkspaceName, setNewWorkspaceName] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const isMounted = useRef(true)
+
+  useEffect(() => {
+    loadWorkspaces()
+    return () => {
+      isMounted.current = false
+    }
+  }, [])
+
+  const loadWorkspaces = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const data = await fetchWorkspaces()
+      if (isMounted.current) {
+        setWorkspaces(data)
+      }
+    } catch (err: any) {
+      console.error(err)
+      if (isMounted.current) {
+        setError(`Failed to load workspaces: ${err.message}`)
+      }
+    } finally {
+      if (isMounted.current) {
+        setLoading(false)
+      }
+    }
+  }
+
+  const fetchWorkspaces = async (): Promise<Workspace[]> => {
+    const response = await fetch('/api/workspaces')
+    if (!response.ok) {
+      throw new Error('Error fetching workspaces')
+    }
+    return response.json()
+  }
+
+  const createNewWorkspace = async (data: WorkspaceInput): Promise<void> => {
+    const response = await fetch('/api/workspaces', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    })
+    if (!response.ok) {
+      throw new Error('Error creating workspace')
+    }
+  }
+
+  const assignUserRole = async (workspaceId: string, userId: string, role: string): Promise<void> => {
+    const response = await fetch(`/api/workspaces/${workspaceId}/users`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, role }),
+    })
+    if (!response.ok) {
+      throw new Error('Error assigning user role')
+    }
+  }
+
+  const removeUserFromWorkspace = async (workspaceId: string, userId: string): Promise<void> => {
+    const response = await fetch(`/api/workspaces/${workspaceId}/users/${userId}`, {
+      method: 'DELETE',
+    })
+    if (!response.ok) {
+      throw new Error('Error removing user from workspace')
+    }
+  }
+
+  const handleCreateWorkspace = async (event: React.FormEvent) => {
+    event.preventDefault()
+    if (!newWorkspaceName.trim()) {
+      return
+    }
+    setCreateLoading(true)
+    setError(null)
+    try {
+      await createNewWorkspace({ name: newWorkspaceName.trim() })
+      if (isMounted.current) {
+        setNewWorkspaceName('')
+        await loadWorkspaces()
+      }
+    } catch (err: any) {
+      console.error(err)
+      if (isMounted.current) {
+        setError(`Failed to create workspace: ${err.message}`)
+      }
+    } finally {
+      if (isMounted.current) {
+        setCreateLoading(false)
+      }
+    }
+  }
+
+  const handleAssignUser = async (event: React.FormEvent<HTMLFormElement>, workspaceId: string) => {
+    event.preventDefault()
+    const formData = new FormData(event.currentTarget)
+    const userId = formData.get('userId')?.toString() || ''
+    const role = formData.get('role')?.toString() || ''
+    if (!userId || !role) {
+      return
+    }
+    setAssigningState(prev => ({ ...prev, [workspaceId]: true }))
+    setError(null)
+    try {
+      await assignUserRole(workspaceId, userId, role)
+      if (isMounted.current) {
+        await loadWorkspaces()
+        event.currentTarget.reset()
+      }
+    } catch (err: any) {
+      console.error(err)
+      if (isMounted.current) {
+        setError(`Failed to assign user role: ${err.message}`)
+      }
+    } finally {
+      if (isMounted.current) {
+        setAssigningState(prev => ({ ...prev, [workspaceId]: false }))
+      }
+    }
+  }
+
+  const handleRemoveUser = async (workspaceId: string, userId: string) => {
+    setRemovingState(prev => ({
+      ...prev,
+      [workspaceId]: { ...(prev[workspaceId] ?? {}), [userId]: true },
+    }))
+    setError(null)
+    try {
+      await removeUserFromWorkspace(workspaceId, userId)
+      if (isMounted.current) {
+        await loadWorkspaces()
+      }
+    } catch (err: any) {
+      console.error(err)
+      if (isMounted.current) {
+        setError(`Failed to remove user: ${err.message}`)
+      }
+    } finally {
+      if (isMounted.current) {
+        setRemovingState(prev => ({
+          ...prev,
+          [workspaceId]: { ...(prev[workspaceId] ?? {}), [userId]: false },
+        }))
+      }
+    }
+  }
+
+  return (
+    <div>
+      <h1>Workspace Manager</h1>
+      <form onSubmit={handleCreateWorkspace}>
+        <input
+          type="text"
+          value={newWorkspaceName}
+          onChange={e => setNewWorkspaceName(e.target.value)}
+          placeholder="Workspace Name"
+          required
+        />
+        <button type="submit" disabled={createLoading}>
+          {createLoading ? 'Creating...' : 'Create Workspace'}
+        </button>
+      </form>
+      {error && <div className="error">{error}</div>}
+      {loading ? (
+        <div>Loading workspaces...</div>
+      ) : (
+        <div>
+          {workspaces.length === 0 ? (
+            <div>No workspaces found.</div>
+          ) : (
+            workspaces.map(workspace => (
+              <div key={workspace.id} className="workspace-card">
+                <h2>{workspace.name}</h2>
+                <h3>Users</h3>
+                <ul>
+                  {workspace.users.map(user => (
+                    <li key={user.id}>
+                      {user.name} ({user.role})
+                      <button
+                        onClick={() => handleRemoveUser(workspace.id, user.id)}
+                        disabled={!!removingState[workspace.id]?.[user.id]}
+                      >
+                        {removingState[workspace.id]?.[user.id] ? 'Removing...' : 'Remove'}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                <form onSubmit={e => handleAssignUser(e, workspace.id)}>
+                  <input type="text" name="userId" placeholder="User ID" required />
+                  <select name="role" defaultValue="" required>
+                    <option value="" disabled>
+                      Select Role
+                    </option>
+                    {AVAILABLE_ROLES.map(role => (
+                      <option key={role} value={role}>
+                        {role}
+                      </option>
+                    ))}
+                  </select>
+                  <button type="submit" disabled={assigningState[workspace.id]}>
+                    {assigningState[workspace.id] ? 'Assigning...' : 'Assign Role'}
+                  </button>
+                </form>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  )
+}

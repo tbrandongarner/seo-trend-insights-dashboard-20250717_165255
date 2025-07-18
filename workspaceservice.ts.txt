@@ -1,0 +1,39 @@
+const workspacesService = {
+  async createWorkspace(data: WorkspaceInput): Promise<Workspace> {
+    const response = await apiClient.post<Workspace>('/workspaces', data)
+    return response.data
+  },
+
+  async getWorkspace(id: string): Promise<Workspace> {
+    const response = await apiClient.get<Workspace>(`/workspaces/${id}`)
+    return response.data
+  },
+
+  async listWorkspaces(tenantId: string): Promise<Workspace[]> {
+    const response = await apiClient.get<Workspace[]>(`/tenants/${tenantId}/workspaces`)
+    return response.data
+  },
+
+  async updateWorkspace(id: string, data: WorkspaceUpdate): Promise<Workspace> {
+    const response = await apiClient.put<Workspace>(`/workspaces/${id}`, data)
+    return response.data
+  },
+
+  async deleteWorkspace(id: string): Promise<void> {
+    await apiClient.delete<void>(`/workspaces/${id}`)
+  },
+
+  async setUserRole(workspaceId: string, userId: string, role: string): Promise<void> {
+    await apiClient.put<void>(
+      `/workspaces/${workspaceId}/users/${userId}/role`,
+      { role }
+    )
+  },
+
+  async listUserRoles(workspaceId: string): Promise<UserRole[]> {
+    const response = await apiClient.get<UserRole[]>(`/workspaces/${workspaceId}/roles`)
+    return response.data
+  }
+}
+
+export default workspacesService

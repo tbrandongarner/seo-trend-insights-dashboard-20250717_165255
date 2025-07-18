@@ -1,0 +1,80 @@
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL
+if (!API_BASE_URL) {
+  throw new Error('REACT_APP_API_BASE_URL environment variable is not defined')
+}
+
+export interface LogFilter {
+  fromDate?: string
+  toDate?: string
+  actions?: string[]
+  userId?: string
+}
+
+export interface AuditLog {
+  id: string
+  tenantId: string
+  userId: string
+  action: string
+  metadata?: any
+  timestamp: string
+}
+
+export async function logAction(
+  tenantId: string,
+  userId: string,
+  action: string,
+  metadata?: any,
+  signal?: AbortSignal
+): Promise<void> {
+  const url = `${API_BASE_URL}/api/tenants/${encodeURIComponent(tenantId)}/audit/logs`
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId, action, metadata }),
+    signal
+  })
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(`Failed to log action: ${response.status} ${errorText}`)
+  }
+}
+
+export async function getLogs(
+  tenantId: string,
+  filter?: LogFilter,
+  signal?: AbortSignal
+): Promise<AuditLog[]> {
+  const params = new URLSearchParams()
+  if (filter?.fromDate) params.append('fromDate', filter.fromDate)
+  if (filter?.toDate) params.append('toDate', filter.toDate)
+  if (filter?.userId) params.append('userId', filter.userId)
+  if (filter?.actions && filter.actions.length > 0) {
+    params.append('actions', filter.actions.join(','))
+  }
+  const query = params.toString() ? `?${params.toString()}` : ''
+  const url = `${API_BASE_URL}/api/tenants/${encodeURIComponent(tenantId)}/audit/logs${query}`
+  const response = await fetch(url, {
+    method: 'GET',
+    signal
+  })
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(`Failed to fetch logs: ${response.status} ${errorText}`)
+  }
+  return (await response.json()) as AuditLog[]
+}
+
+export async function clearLogs(
+  tenantId: string,
+  signal?: AbortSignal
+): Promise<void> {
+  const url = `${API_BASE_URL}/api/tenants/${encodeURIComponent(tenantId)}/audit/logs`
+  const response = await fetch(url, {
+    method: 'DELETE',
+    signal
+  })
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(`Failed to clear logs: ${response.status} ${errorText}`)
+  }
+}

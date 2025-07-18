@@ -1,0 +1,18 @@
+const { error, info } = this.state
+      if (typeof this.props.fallback === 'function') {
+        return this.props.fallback(error as Error, info)
+      }
+      if (this.props.fallback) {
+        return this.props.fallback
+      }
+      return (
+        <div style={{ padding: '2rem', textAlign: 'center' }}>
+          <h1>Something went wrong.</h1>
+          <button onClick={this.handleReload}>Reload Page</button>
+        </div>
+      )
+    }
+
+    return this.props.children
+  }
+}

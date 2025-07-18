@@ -1,0 +1,115 @@
+const baseURL = process.env.REACT_APP_API_BASE_URL
+if (!baseURL || typeof baseURL !== 'string') {
+  throw new Error('Environment variable REACT_APP_API_BASE_URL must be defined and valid')
+}
+
+const apiClient = axios.create({
+  baseURL,
+  headers: { 'Content-Type': 'application/json' }
+})
+
+export interface ReportConfig {
+  tenantId: string
+  reportName?: string
+  startDate: string
+  endDate: string
+  metrics: string[]
+  dimensions?: string[]
+  filters?: Record<string, any>
+  formatOptions?: Record<string, any>
+}
+
+export interface ReportSchedule {
+  config: ReportConfig
+  cronExpression: string
+  timezone?: string
+  notificationEmails?: string[]
+}
+
+export interface ReportFile {
+  id: string
+  url: string
+  name: string
+  type: 'pdf' | 'csv'
+  size: number
+}
+
+export interface ScheduledReport {
+  scheduleId: string
+  config: ReportConfig
+  cronExpression: string
+  nextRun: string
+}
+
+export interface StorageLocation {
+  type: 's3' | 'gcs' | 'local'
+  bucket?: string
+  path: string
+  credentials?: {
+    accessKeyId: string
+    secretAccessKey: string
+    token?: string
+  }
+}
+
+function handleApiError(error: unknown): never {
+  if (axios.isAxiosError(error)) {
+    const axiosError = error as AxiosError
+    const message =
+      axiosError.response?.data && typeof axiosError.response.data === 'object' && 'message' in axiosError.response.data
+        ? (axiosError.response.data as any).message
+        : axiosError.message
+    throw new Error(`ReportService API error: ${message}`)
+  }
+  if (error instanceof Error) {
+    throw new Error(`ReportService error: ${error.message}`)
+  }
+  throw new Error('ReportService encountered an unknown error')
+}
+
+export async function generatePDFReport(config: ReportConfig): Promise<ReportFile> {
+  try {
+    const response = await apiClient.post<ReportFile>('/reports/pdf', config)
+    return response.data
+  } catch (error) {
+    handleApiError(error)
+  }
+}
+
+export async function generateCSVReport(config: ReportConfig): Promise<ReportFile> {
+  try {
+    const response = await apiClient.post<ReportFile>('/reports/csv', config)
+    return response.data
+  } catch (error) {
+    handleApiError(error)
+  }
+}
+
+export async function scheduleReport(reportSchedule: ReportSchedule): Promise<ScheduledReport> {
+  try {
+    const response = await apiClient.post<ScheduledReport>('/reports/schedule', reportSchedule)
+    return response.data
+  } catch (error) {
+    handleApiError(error)
+  }
+}
+
+export async function exportReport(reportId: string): Promise<ReportFile> {
+  try {
+    const response = await apiClient.get<ReportFile>(`/reports/${encodeURIComponent(reportId)}/export`)
+    return response.data
+  } catch (error) {
+    handleApiError(error)
+  }
+}
+
+export async function saveReport(reportFile: ReportFile, destination: StorageLocation): Promise<void> {
+  try {
+    await apiClient.post('/storage/save', {
+      reportFile,
+      destination
+    })
+  } catch (error) {
+    handleApiError(error)
+  }
+}

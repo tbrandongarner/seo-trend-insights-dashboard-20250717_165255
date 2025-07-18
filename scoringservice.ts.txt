@@ -1,0 +1,61 @@
+const DEFAULT_WEIGHTS: Weights = {
+  searchVolume: 0.4,
+  clickThroughRate: 0.3,
+  trendChange: 0.2,
+  difficulty: 0.1,
+}
+
+export class ScoringService {
+  private weights: Weights
+
+  constructor(customWeights?: Partial<Weights>) {
+    this.weights = { ...DEFAULT_WEIGHTS, ...customWeights }
+    this.validateWeights()
+  }
+
+  private validateWeights(): void {
+    const { searchVolume, clickThroughRate, trendChange, difficulty } = this.weights
+    const positiveSum = searchVolume + clickThroughRate + trendChange
+    if (positiveSum <= 0) {
+      throw new Error('Sum of searchVolume, clickThroughRate, and trendChange weights must be greater than zero')
+    }
+    if (difficulty < 0) {
+      throw new Error('Difficulty weight must be non-negative')
+    }
+  }
+
+  private safe(value?: number): number {
+    return typeof value === 'number' && !isNaN(value) ? value : 0
+  }
+
+  calculateRelevance(topic: Topic): number {
+    const sv = this.safe(topic.searchVolume)
+    const ctr = this.safe(topic.clickThroughRate)
+    const tc = this.safe(topic.trendChange)
+    const diff = this.safe(topic.difficulty)
+    return (
+      sv * this.weights.searchVolume +
+      ctr * this.weights.clickThroughRate +
+      tc * this.weights.trendChange -
+      diff * this.weights.difficulty
+    )
+  }
+
+  scoreTopics(topics: Topic[]): ScoredTopic[] {
+    return topics.map(topic => ({
+      ...topic,
+      score: this.calculateRelevance(topic),
+    }))
+  }
+
+  sortByScore(scoredTopics: ScoredTopic[]): ScoredTopic[] {
+    return [...scoredTopics].sort((a, b) => b.score - a.score)
+  }
+
+  prioritizeTopics(topics: Topic[]): ScoredTopic[] {
+    const scored = this.scoreTopics(topics)
+    return this.sortByScore(scored)
+  }
+}
+
+export const scoringService = new ScoringService()

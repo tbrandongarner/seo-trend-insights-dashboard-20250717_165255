@@ -1,0 +1,116 @@
+let apiClient: AxiosInstance | null = null;
+
+export interface ApiClientConfig {
+  baseURL: string;
+  defaultHeaders?: Record<string, string>;
+  getAuthToken?: () => string | null;
+}
+
+export interface RequestConfig<T = any> {
+  method: AxiosRequestConfig['method'];
+  url: string;
+  data?: any;
+  params?: Record<string, any>;
+  headers?: Record<string, string>;
+}
+
+export function initApiClient(config: ApiClientConfig): void {
+  apiClient = axios.create({
+    baseURL: config.baseURL,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(config.defaultHeaders || {}),
+    },
+  });
+
+  if (config.getAuthToken) {
+    apiClient.interceptors.request.use(
+      (reqConfig: AxiosRequestConfig) => {
+        const token = config.getAuthToken!();
+        if (token) {
+          reqConfig.headers = reqConfig.headers || {};
+          reqConfig.headers.Authorization = `Bearer ${token}`;
+        }
+        return reqConfig;
+      },
+      (error) => Promise.reject(error)
+    );
+  }
+}
+
+export function setTenantHeader(tenantId: string): void {
+  if (!apiClient) {
+    throw new Error('API client not initialized. Call initApiClient first.');
+  }
+  apiClient.defaults.headers.common['X-Tenant-ID'] = tenantId;
+}
+
+export function request<T = any>(
+  config: RequestConfig<T>
+): Promise<AxiosResponse<T>> {
+  if (!apiClient) {
+    throw new Error('API client not initialized. Call initApiClient first.');
+  }
+  const axiosConfig: AxiosRequestConfig = {
+    method: config.method,
+    url: config.url,
+    data: config.data,
+    params: config.params,
+    headers: config.headers,
+  };
+  return apiClient.request<T>(axiosConfig);
+}
+
+export function get<T = any>(
+  url: string,
+  options?: { params?: Record<string, any>; headers?: Record<string, string> }
+): Promise<AxiosResponse<T>> {
+  return request<T>({
+    method: 'GET',
+    url,
+    params: options?.params,
+    headers: options?.headers,
+  });
+}
+
+export function post<T = any>(
+  url: string,
+  data?: any,
+  options?: { params?: Record<string, any>; headers?: Record<string, string> }
+): Promise<AxiosResponse<T>> {
+  return request<T>({
+    method: 'POST',
+    url,
+    data,
+    params: options?.params,
+    headers: options?.headers,
+  });
+}
+
+export function put<T = any>(
+  url: string,
+  data?: any,
+  options?: { params?: Record<string, any>; headers?: Record<string, string> }
+): Promise<AxiosResponse<T>> {
+  return request<T>({
+    method: 'PUT',
+    url,
+    data,
+    params: options?.params,
+    headers: options?.headers,
+  });
+}
+
+function remove<T = any>(
+  url: string,
+  options?: { params?: Record<string, any>; headers?: Record<string, string> }
+): Promise<AxiosResponse<T>> {
+  return request<T>({
+    method: 'DELETE',
+    url,
+    params: options?.params,
+    headers: options?.headers,
+  });
+}
+
+export { remove as delete };

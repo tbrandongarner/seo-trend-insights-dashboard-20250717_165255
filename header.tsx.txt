@@ -1,0 +1,123 @@
+export default function Header(): JSX.Element {
+  const [searchQuery, setSearchQuery] = useState<string>('')
+  const [theme, setTheme] = useState<'light' | 'dark'>('light')
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('theme') as 'light' | 'dark' | null
+      if (stored === 'light' || stored === 'dark') {
+        applyTheme(stored)
+      } else {
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+        applyTheme(prefersDark ? 'dark' : 'light')
+      }
+    } catch {
+      applyTheme('light')
+    }
+  }, [])
+
+  function applyTheme(mode: 'light' | 'dark') {
+    setTheme(mode)
+    document.documentElement.setAttribute('data-theme', mode)
+    try {
+      localStorage.setItem('theme', mode)
+    } catch {
+      // ignore
+    }
+  }
+
+  function handleSearch(query: string): void {
+    const term = query.trim()
+    if (term) {
+      navigate(`/search?q=${encodeURIComponent(term)}`)
+      setSearchQuery('')
+    }
+  }
+
+  function toggleTheme(): void {
+    applyTheme(theme === 'light' ? 'dark' : 'light')
+  }
+
+  function handleNavigation(path: string): void {
+    navigate(path)
+  }
+
+  function onSearchSubmit(e: FormEvent<HTMLFormElement>): void {
+    e.preventDefault()
+    handleSearch(searchQuery)
+  }
+
+  function onInputChange(e: ChangeEvent<HTMLInputElement>): void {
+    setSearchQuery(e.target.value)
+  }
+
+  return (
+    <header className="app-header" role="banner">
+      <div className="app-header__inner">
+        <button
+          type="button"
+          className="app-header__logo"
+          onClick={() => handleNavigation('/')}
+          aria-label="Home"
+        >
+          SEO Trend Insights
+        </button>
+        <nav className="app-header__nav" role="navigation" aria-label="Primary">
+          <ul className="app-header__nav-list">
+            <li>
+              <button type="button" onClick={() => handleNavigation('/dashboard')}>
+                Dashboard
+              </button>
+            </li>
+            <li>
+              <button type="button" onClick={() => handleNavigation('/reports')}>
+                Reports
+              </button>
+            </li>
+            <li>
+              <button type="button" onClick={() => handleNavigation('/alerts')}>
+                Alerts
+              </button>
+            </li>
+            <li>
+              <button type="button" onClick={() => handleNavigation('/workspaces')}>
+                Workspaces
+              </button>
+            </li>
+            <li>
+              <button type="button" onClick={() => handleNavigation('/settings')}>
+                Settings
+              </button>
+            </li>
+          </ul>
+        </nav>
+        <form className="app-header__search" onSubmit={onSearchSubmit} role="search">
+          <label htmlFor="header-search" className="visually-hidden">
+            Search trends
+          </label>
+          <input
+            id="header-search"
+            type="text"
+            value={searchQuery}
+            placeholder="Search trends..."
+            onChange={onInputChange}
+            aria-label="Search trends"
+          />
+          <button type="submit" aria-label="Submit search">
+            🔍
+          </button>
+        </form>
+        <button
+          type="button"
+          className="app-header__theme-toggle"
+          onClick={toggleTheme}
+          aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
+          aria-pressed={theme === 'dark'}
+        >
+          {theme === 'light' ? '🌞' : '🌜'}
+        </button>
+      </div>
+    </header>
+  )
+}

@@ -1,0 +1,65 @@
+const notification = await this.repo.findById(notificationId)
+    if (!notification) return
+
+    if (notification.attempts >= this.maxRetries) {
+      notification.status = 'failed'
+      notification.updatedAt = new Date()
+      await this.repo.save(notification)
+      return
+    }
+
+    notification.attempts += 1
+    notification.updatedAt = new Date()
+
+    try {
+      if (notification.type === 'email') {
+        if (!notification.to || !notification.subject || !notification.body) {
+          notification.status = 'failed'
+          notification.lastError = 'Missing email notification data'
+        } else {
+          await this.sendEmailNotification(notification.to, notification.subject, notification.body)
+          notification.status = 'sent'
+          notification.lastError = null
+        }
+      } else if (notification.type === 'webhook') {
+        if (!notification.url) {
+          notification.status = 'failed'
+          notification.lastError = 'Missing webhook URL'
+        } else {
+          await this.sendWebhookNotification(notification.url, notification.payload)
+          notification.status = 'sent'
+          notification.lastError = null
+        }
+      } else {
+        notification.status = 'failed'
+        notification.lastError = `Unsupported notification type: ${notification.type}`
+      }
+    } catch (err: any) {
+      notification.status = 'pending'
+      notification.lastError = err.message
+      await this.repo.save(notification)
+      this.scheduleRetry(notification.id, notification.attempts)
+      return
+    }
+
+    await this.repo.save(notification)
+  }
+
+  private scheduleRetry(notificationId: string, attempt: number): void {
+    if (attempt >= this.maxRetries) return
+    const delay = this.baseDelay * Math.pow(2, attempt - 1)
+    this.retryQueue.add({ notificationId }, { delay, attempts: 1 })
+  }
+
+  private async processRetryJob(job: Job<{ notificationId: string }>): Promise<void> {
+    await this.retryNotification(job.data.notificationId)
+  }
+
+  private async sendEmailNotification(to: string, subject: string, body: string): Promise<void> {
+    // integrate with email provider
+  }
+
+  private async sendWebhookNotification(url: string, payload: any): Promise<void> {
+    // integrate with webhook dispatch
+  }
+}

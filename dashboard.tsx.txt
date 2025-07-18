@@ -1,0 +1,114 @@
+export default function Dashboard(): JSX.Element {
+  const { tenantId } = useTenant()
+  const defaultEnd = new Date().toISOString().split('T')[0]
+  const defaultStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .split('T')[0]
+
+  const [filters, setFilters] = useState<TrendFilter>({
+    tenantId,
+    startDate: defaultStart,
+    endDate: defaultEnd,
+    metrics: ['impressions', 'clicks', 'ctr'],
+    dimensions: ['keyword']
+  })
+  const [chartData, setChartData] = useState<ChartData | null>(null)
+  const [loading, setLoading] = useState<boolean>(false)
+  const [error, setError] = useState<string | null>(null)
+  const [drillSelection, setDrillSelection] = useState<DrillDownSelection | null>(null)
+  const [showDrill, setShowDrill] = useState<boolean>(false)
+
+  const activeController = useRef<AbortController | null>(null)
+
+  const fetchTrendChartData = useCallback(
+    async (f: TrendFilter, signal?: AbortSignal): Promise<ChartData> => {
+      const params = {
+        tenantId: f.tenantId,
+        startDate: f.startDate,
+        endDate: f.endDate,
+        metrics: f.metrics.join(','),
+        dimensions: f.dimensions.join(',')
+      }
+      const response = await axios.get<ChartData>('/api/trends', {
+        params,
+        signal
+      })
+      return response.data
+    },
+    []
+  )
+
+  const applyFilters = useCallback(
+    async (newFilters: TrendFilter, signal?: AbortSignal) => {
+      setFilters(newFilters)
+      setChartData(null)
+      setLoading(true)
+      setError(null)
+      try {
+        const data = await fetchTrendChartData(newFilters, signal)
+        setChartData(data)
+      } catch (err: any) {
+        if (err.name === 'AbortError' || axios.isCancel?.(err)) {
+          return
+        }
+        setError(err instanceof Error ? err.message : 'Unknown error')
+      } finally {
+        setLoading(false)
+      }
+    },
+    [fetchTrendChartData]
+  )
+
+  useEffect(() => {
+    const controller = new AbortController()
+    activeController.current = controller
+    applyFilters(filters, controller.signal)
+    return () => {
+      controller.abort()
+      activeController.current = null
+    }
+  }, [applyFilters])
+
+  useEffect(() => {
+    if (filters.tenantId === tenantId) return
+    const controller = new AbortController()
+    activeController.current?.abort()
+    activeController.current = controller
+    const updated = { ...filters, tenantId }
+    applyFilters(updated, controller.signal)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenantId])
+
+  const handleApply = (newFilters: TrendFilter) => {
+    activeController.current?.abort()
+    const controller = new AbortController()
+    activeController.current = controller
+    applyFilters(newFilters, controller.signal)
+  }
+
+  const handleDrillDown = (selection: DrillDownSelection): void => {
+    setDrillSelection(selection)
+    setShowDrill(true)
+  }
+
+  const closeDrill = (): void => {
+    setShowDrill(false)
+    setDrillSelection(null)
+  }
+
+  return (
+    <div className="dashboard-container">
+      <TrendFilters initialFilters={filters} onApply={handleApply} />
+      <div className="chart-area">
+        {loading && <Loader />}
+        {error && <ErrorMessage message={error} />}
+        {!loading && !error && chartData && (
+          <TrendChart data={chartData} onPointClick={handleDrillDown} />
+        )}
+      </div>
+      {showDrill && drillSelection && (
+        <DrillDownModal selection={drillSelection} onClose={closeDrill} />
+      )}
+    </div>
+  )
+}

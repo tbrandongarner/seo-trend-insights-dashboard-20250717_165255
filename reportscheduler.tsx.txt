@@ -1,0 +1,353 @@
+export default function ReportScheduler(): JSX.Element {
+  const [recurrenceSettings, setRecurrenceSettings] = useState<RecurrenceSettings>({
+    frequency: 'daily',
+    interval: 1,
+    daysOfWeek: [],
+    startDate: new Date(),
+    endDate: undefined,
+  })
+  const [reportConfig, setReportConfig] = useState<ReportConfig>({
+    metrics: [],
+    dimensions: [],
+    filters: {},
+    dateRange: {
+      startDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+      endDate: new Date(),
+    },
+  })
+  const [recipients, setRecipients] = useState<string>('')
+  const [emailErrors, setEmailErrors] = useState<string[]>([])
+  const [format, setFormat] = useState<'pdf' | 'csv'>('pdf')
+  const [previewData, setPreviewData] = useState<any[]>([])
+  const [loadingPreview, setLoadingPreview] = useState<boolean>(false)
+  const [exportingFormat, setExportingFormat] = useState<'pdf' | 'csv' | null>(null)
+  const [scheduling, setScheduling] = useState<boolean>(false)
+
+  const metricOptions = ['sessions', 'users', 'bounce_rate', 'pageviews']
+  const dimensionOptions = ['country', 'device', 'source', 'page']
+
+  useEffect(() => {
+    const controller = new AbortController()
+    let cancelled = false
+    async function fetchPreview() {
+      setLoadingPreview(true)
+      try {
+        const res = await fetch('/api/reports/preview', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(reportConfig),
+          signal: controller.signal,
+        })
+        if (!res.ok) throw new Error('Failed to load preview')
+        const data = await res.json()
+        if (!cancelled) setPreviewData(data)
+      } catch (e) {
+        if (!cancelled) {
+          console.error(e)
+          setPreviewData([])
+        }
+      } finally {
+        if (!cancelled) setLoadingPreview(false)
+      }
+    }
+    fetchPreview()
+    return () => {
+      cancelled = true
+      controller.abort()
+    }
+  }, [reportConfig])
+
+  function handleRecurrenceChange(settings: RecurrenceSettings): void {
+    setRecurrenceSettings(settings)
+  }
+
+  async function handleExport(fmt: 'pdf' | 'csv'): Promise<void> {
+    setExportingFormat(fmt)
+    try {
+      const res = await fetch(`/api/reports/export?format=${fmt}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(reportConfig),
+      })
+      if (!res.ok) throw new Error('Export failed')
+      const blob = await res.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `report.${fmt}`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (e) {
+      console.error(e)
+      alert('Export error')
+    } finally {
+      setExportingFormat(null)
+    }
+  }
+
+  function buildVisualReport(): JSX.Element {
+    if (loadingPreview) {
+      return <div>Loading preview...</div>
+    }
+    if (!previewData || previewData.length === 0) {
+      return <div>No data for the selected configuration.</div>
+    }
+    return (
+      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <thead>
+          <tr>
+            {Object.keys(previewData[0]).map((col) => (
+              <th key={col} style={{ border: '1px solid #ccc', padding: '8px' }}>
+                {col}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {previewData.map((row, idx) => (
+            <tr key={idx}>
+              {Object.values(row).map((val, i) => (
+                <td key={i} style={{ border: '1px solid #ccc', padding: '8px' }}>
+                  {val}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    )
+  }
+
+  async function scheduleReportRequest(config: ReportSchedule): Promise<void> {
+    setScheduling(true)
+    try {
+      const res = await fetch('/api/reports/schedule', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config),
+      })
+      if (!res.ok) throw new Error('Scheduling failed')
+      alert('Report scheduled successfully')
+    } catch (e) {
+      console.error(e)
+      alert('Scheduling error')
+    } finally {
+      setScheduling(false)
+    }
+  }
+
+  function handleScheduleClick() {
+    const list = recipients
+      .split(',')
+      .map((r) => r.trim())
+      .filter((r) => r)
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    const invalid = list.filter((e) => !emailRegex.test(e))
+    if (invalid.length > 0) {
+      setEmailErrors(invalid)
+      return
+    }
+    setEmailErrors([])
+    scheduleReportRequest({
+      recurrence: recurrenceSettings,
+      config: reportConfig,
+      recipients: list,
+      format,
+    })
+  }
+
+  return (
+    <div style={{ padding: '20px', maxWidth: '800px', margin: '0 auto' }}>
+      <h2>Report Scheduler</h2>
+      <section>
+        <h3>Report Configuration</h3>
+        <div>
+          <label>Date Range:</label>
+          <input
+            type="date"
+            value={reportConfig.dateRange.startDate.toISOString().slice(0, 10)}
+            onChange={(e) =>
+              setReportConfig((cfg) => ({
+                ...cfg,
+                dateRange: { ...cfg.dateRange, startDate: new Date(e.target.value) },
+              }))
+            }
+          />
+          <input
+            type="date"
+            value={reportConfig.dateRange.endDate.toISOString().slice(0, 10)}
+            onChange={(e) =>
+              setReportConfig((cfg) => ({
+                ...cfg,
+                dateRange: { ...cfg.dateRange, endDate: new Date(e.target.value) },
+              }))
+            }
+          />
+        </div>
+        <div>
+          <label>Metrics:</label>
+          {metricOptions.map((m) => (
+            <label key={m} style={{ marginRight: '10px' }}>
+              <input
+                type="checkbox"
+                checked={reportConfig.metrics.includes(m)}
+                onChange={(e) => {
+                  const set = new Set(reportConfig.metrics)
+                  e.target.checked ? set.add(m) : set.delete(m)
+                  setReportConfig((cfg) => ({ ...cfg, metrics: Array.from(set) }))
+                }}
+              />
+              {m}
+            </label>
+          ))}
+        </div>
+        <div>
+          <label>Dimensions:</label>
+          {dimensionOptions.map((d) => (
+            <label key={d} style={{ marginRight: '10px' }}>
+              <input
+                type="checkbox"
+                checked={reportConfig.dimensions.includes(d)}
+                onChange={(e) => {
+                  const set = new Set(reportConfig.dimensions)
+                  e.target.checked ? set.add(d) : set.delete(d)
+                  setReportConfig((cfg) => ({ ...cfg, dimensions: Array.from(set) }))
+                }}
+              />
+              {d}
+            </label>
+          ))}
+        </div>
+      </section>
+
+      <section>
+        <h3>Recurrence Settings</h3>
+        <div>
+          <label>Frequency:</label>
+          <select
+            value={recurrenceSettings.frequency}
+            onChange={(e) =>
+              handleRecurrenceChange({
+                ...recurrenceSettings,
+                frequency: e.target.value as RecurrenceSettings['frequency'],
+              })
+            }
+          >
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+          </select>
+        </div>
+        <div>
+          <label>Interval:</label>
+          <input
+            type="number"
+            min={1}
+            value={recurrenceSettings.interval}
+            onChange={(e) =>
+              handleRecurrenceChange({
+                ...recurrenceSettings,
+                interval: Number(e.target.value),
+              })
+            }
+          />
+        </div>
+        {recurrenceSettings.frequency === 'weekly' && (
+          <div>
+            <label>Days of Week:</label>
+            {[0, 1, 2, 3, 4, 5, 6].map((d) => (
+              <label key={d} style={{ marginRight: '5px' }}>
+                <input
+                  type="checkbox"
+                  checked={recurrenceSettings.daysOfWeek.includes(d)}
+                  onChange={(e) => {
+                    const days = new Set(recurrenceSettings.daysOfWeek)
+                    e.target.checked ? days.add(d) : days.delete(d)
+                    handleRecurrenceChange({ ...recurrenceSettings, daysOfWeek: Array.from(days) })
+                  }}
+                />
+                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d]}
+              </label>
+            ))}
+          </div>
+        )}
+        <div>
+          <label>Start Date:</label>
+          <input
+            type="date"
+            value={recurrenceSettings.startDate.toISOString().slice(0, 10)}
+            onChange={(e) =>
+              handleRecurrenceChange({
+                ...recurrenceSettings,
+                startDate: new Date(e.target.value),
+              })
+            }
+          />
+        </div>
+        <div>
+          <label>End Date (optional):</label>
+          <input
+            type="date"
+            value={recurrenceSettings.endDate ? recurrenceSettings.endDate.toISOString().slice(0, 10) : ''}
+            onChange={(e) =>
+              handleRecurrenceChange({
+                ...recurrenceSettings,
+                endDate: e.target.value ? new Date(e.target.value) : undefined,
+              })
+            }
+          />
+        </div>
+      </section>
+
+      <section>
+        <h3>Recipients & Format</h3>
+        <div>
+          <label>Recipients (comma-separated emails):</label>
+          <input
+            type="text"
+            style={{ width: '100%' }}
+            value={recipients}
+            onChange={(e) => setRecipients(e.target.value)}
+          />
+          {emailErrors.length > 0 && (
+            <div style={{ color: 'red' }}>
+              Invalid email addresses: {emailErrors.join(', ')}
+            </div>
+          )}
+        </div>
+        <div>
+          <label>Format:</label>
+          <select value={format} onChange={(e) => setFormat(e.target.value as 'pdf' | 'csv')}>
+            <option value="pdf">PDF</option>
+            <option value="csv">CSV</option>
+          </select>
+        </div>
+      </section>
+
+      <section style={{ marginTop: '20px' }}>
+        <h3>Preview</h3>
+        {buildVisualReport()}
+      </section>
+
+      <section style={{ marginTop: '20px' }}>
+        <button
+          disabled={exportingFormat === 'pdf'}
+          onClick={() => handleExport('pdf')}
+        >
+          {exportingFormat === 'pdf' ? 'Exporting PDF...' : 'Export PDF'}
+        </button>
+        <button
+          disabled={exportingFormat === 'csv'}
+          onClick={() => handleExport('csv')}
+        >
+          {exportingFormat === 'csv' ? 'Exporting CSV...' : 'Export CSV'}
+        </button>
+        <button disabled={scheduling} onClick={handleScheduleClick}>
+          {scheduling ? 'Scheduling...' : 'Schedule Report'}
+        </button>
+      </section>
+    </div>
+  )
+}

@@ -1,85 +1,84 @@
-# seo-trend-insights-dashboard-20250717_165255
+# SEO Trend Insights
 
-A multi-tenant React application for marketers and agencies that combines an LLM-based SEO Trends API with Google Analytics and Search Console. It delivers personalized SEO trend insights, interactive dashboards, scheduled PDF/CSV reports, real-time alerts, and workspace management?all within a secure, role-based environment.
+A multi-tenant React application for marketers and agencies that delivers personalized SEO trend insights by combining an LLM-based SEO Trends API with Google Analytics and Search Console. It features interactive dashboards, scheduled PDF/CSV reports, real-time alerts, workspace management, role-based access control, and comprehensive audit logging—all within a secure, responsive UI.
 
 ---
 
 ## Table of Contents
 
-1. [Overview](#overview)  
-2. [Key Features](#key-features)  
-3. [Architecture & Project Structure](#architecture--project-structure)  
-4. [Installation](#installation)  
-5. [Configuration](#configuration)  
-6. [Usage](#usage)  
-7. [Components & Services](#components--services)  
-8. [Dependencies](#dependencies)  
-9. [Environment Variables](#environment-variables)  
-10. [Testing](#testing)  
-11. [CI/CD & Deployment](#cicd--deployment)  
-12. [Contributing](#contributing)  
-13. [License](#license)  
+- [Overview](#overview)  
+- [Features](#features)  
+- [Architecture](#architecture)  
+- [Installation](#installation)  
+- [Usage](#usage)  
+- [Components](#components)  
+- [Dependencies](#dependencies)  
+- [Environment Variables](#environment-variables)  
+- [Development & Testing](#development--testing)  
+- [CI/CD & Deployment](#cicd--deployment)  
+- [Contributing](#contributing)  
+- [License](#license)  
 
 ---
 
 ## Overview
 
-SEO Trend Insights Dashboard provides:
+SEO Trend Insights Dashboard lets agencies and in-house marketing teams:
+
+- Authenticate via email/password or OAuth2 (Google, Microsoft).  
+- Onboard new users with niche selection and Google Analytics/Search Console data connection.  
+- Explore interactive, filterable trend charts with drill-down capabilities.  
+- Schedule recurring PDF/CSV reports delivered by email or webhook.  
+- Configure real-time alerts on custom thresholds.  
+- Manage multi-tenant workspaces and user roles.  
+- View custom 403/404 pages, global error handling, and loading states.  
+- Track every action with tenant-aware audit logs.  
+- Operate in light/dark mode with WCAG 2.1 AA compliance.
+
+---
+
+## Features
 
 - Secure JWT session management with OAuth2 connectors  
 - Row-level multi-tenant isolation  
-- Real-time data ingestion (LLM SEO Trends + Google APIs) with caching and circuit breakers  
-- Interactive, filterable trend dashboards with drill-downs  
-- Customizable PDF/CSV report scheduling and delivery  
-- Robust email and webhook alerts with retry/backoff  
-- Workspace and user-role administration UI  
+- Real-time ingestion of LLM SEO trends & Google API data with caching & circuit breakers  
+- Interactive, drill-down dashboards  
+- Customizable PDF/CSV report scheduling  
+- Robust email and webhook alerts with exponential backoff  
+- Workspace and user role administration  
 - Comprehensive audit logging  
-- Global error handling, custom 404/403 pages  
-- Responsive design, dark mode, WCAG 2.1 AA compliant  
+- Global error boundaries, custom 404/403, loading spinners  
+- Responsive, accessible design (dark mode support)
 
 ---
 
-## Key Features
+## Architecture
 
-- **Authentication & Authorization**  
-  Email/password login, OAuth2 (Google), JWT handling, role checks  
-- **Onboarding**  
-  Profile setup, niche selection, GA/Search Console OAuth flow  
-- **Dashboard**  
-  Trend charts, filters, drill-downs, loading states  
-- **Report Scheduler**  
-  Visual report builder, recurrence settings, PDF/CSV export  
-- **Alert Settings**  
-  Real-time alert configuration via email/webhooks, retry logic  
-- **Workspace Manager**  
-  Multi-tenant workspace CRUD, user roles, access control  
-- **Global UI**  
-  Error boundary, loading spinner, 404/403 pages  
+• **Entry Point**  
+  - `index.js`: ReactDOM render, global error handler setup  
 
----
+• **Root**  
+  - `app.jsx`: Main component, React Router configuration  
 
-## Architecture & Project Structure
+• **Layout**  
+  - `header.tsx`: Top nav, global search, theme toggle  
+  - `sidebar.tsx`: Primary nav (Dashboard, Reports, Alerts, Workspaces)  
 
-- **Entry Point**  
-  - `index.js`  
-- **Main App**  
-  - `app.jsx` (React Router, route definitions)  
-- **Layout Components**  
-  - `header.tsx` (top navigation, global search, theme toggle)  
-  - `sidebar.tsx` (primary navigation links)  
-- **Page Components**  
+• **Page Components**  
   - `authentication.tsx`  
   - `onboarding.tsx`  
   - `dashboard.tsx`  
   - `reportscheduler.tsx`  
   - `alertsettings.tsx`  
   - `workspacemanager.tsx`  
-- **Shared UI**  
+
+• **Shared UI**  
   - `errorboundary.tsx`  
   - `loadingspinner.tsx`  
   - `notfound.tsx`  
   - `accessdenied.tsx`  
-- **Service Layer** (`.ts` files)  
+
+• **Service Layer**  
   - `apiclient.ts`  
   - `authservice.ts`  
   - `dataingestionservice.ts`  
@@ -88,190 +87,231 @@ SEO Trend Insights Dashboard provides:
   - `workspaceservice.ts`  
   - `notificationservice.ts`  
   - `auditservice.ts`  
-- **Config & Scripts**  
-  - `package.json`  
-  - `.env`  
+
+• **State Management**  
+  - Local React state & Context API  
+
+• **Styling & Accessibility**  
+  - Responsive design, dark mode, WCAG 2.1 AA  
+
+• **Observability**  
+  - Logging in services, client errors via `ErrorBoundary`  
 
 ---
 
 ## Installation
 
-1. Clone the repo  
+1. Clone the repository  
    ```bash
-   git clone https://github.com/your-org/seo-trend-insights-dashboard-20250717_165255.git
-   cd seo-trend-insights-dashboard-20250717_165255
+   git clone https://github.com/your-org/seo-trend-insights.git
+   cd seo-trend-insights
    ```
 
 2. Install dependencies  
    ```bash
    npm install
-   # or
-   yarn install
    ```
 
-3. Create a `.env` file in the project root (see [Environment Variables](#environment-variables))
+3. Copy and configure environment variables  
+   ```bash
+   cp .env.example .env
+   # Edit .env with your API URLs, OAuth credentials, AWS keys, etc.
+   ```
 
----
+4. Start development server  
+   ```bash
+   npm run dev
+   ```
 
-## Configuration
-
-Required environment variables:
-
-```
-REACT_APP_API_BASE_URL=https://api.yourdomain.com
-REACT_APP_OAUTH_CLIENT_ID=your-google-oauth-client-id
-REACT_APP_OAUTH_REDIRECT_URI=https://app.yourdomain.com/oauth-callback
-AWS_S3_BUCKET=your-s3-bucket
-AWS_REGION=us-east-1
-AWS_ACCESS_KEY_ID=your-access-key
-AWS_SECRET_ACCESS_KEY=your-secret-key
-EMAIL_SERVICE_API_KEY=your-email-service-key
-```
+5. Build for production  
+   ```bash
+   npm run build
+   ```
 
 ---
 
 ## Usage
 
-### Development
+### Running Locally
 
 ```bash
-npm run start
-# or
-yarn start
+npm run dev
+# Visit http://localhost:3000
 ```
-Open http://localhost:3000
 
-### Building for Production
+### Building & Starting
 
 ```bash
 npm run build
+npm start
 ```
 
 ### Running Tests
 
 ```bash
-npm run test
+npm test
 ```
 
-### Linting & Formatting
+### Example: Fetching SEO Trends Programmatically
 
-```bash
-npm run lint
-npm run format
+```ts
+import apiClient from './services/apiclient';
+import { TrendFetchParams } from './services/dataingestionservice';
+
+async function getTrends() {
+  const params: TrendFetchParams = { tenantId: 'abc123', niche: 'technology', timeframe: '7days' };
+  const response = await apiClient.get('/trends', { params });
+  console.log(response.data);
+}
 ```
 
 ---
 
-## Components & Services
+## Components
+
+### Service Layer
+
+- **apiclient.ts**  
+  Central HTTP client using Axios with retry, circuit breakers, and tenant header injection.
+
+- **authservice.ts**  
+  Handles signup, login, token refresh, OAuth2 connectors, and role checks.
+
+- **dataingestionservice.ts**  
+  Fetches & caches LLM SEO trends and Google Analytics/Search Console data.
+
+- **scoringservice.ts**  
+  Implements SEO topic scoring (trend velocity, niche relevance, historic performance).
+
+- **reportservice.ts**  
+  Generates, schedules, and delivers PDF/CSV reports via S3 + SES/SendGrid.
+
+- **workspaceservice.ts**  
+  CRUD for multi-tenant workspaces, user roles, and data isolation logic.
+
+- **notificationservice.ts**  
+  Sends email/webhook notifications with exponential backoff retry logic.
+
+- **auditservice.ts**  
+  Logs tenant-aware actions for compliance and audit trails.
 
 ### Page Components
 
-- **Authentication** (`authentication.tsx`)  
-  Login, signup, password reset, OAuth2 UI  
-- **Onboarding** (`onboarding.tsx`)  
-  User profile setup, niche selection, GA/Search Console OAuth  
-- **Dashboard** (`dashboard.tsx`)  
-  Filterable trend charts, summary cards, drill-downs  
-- **Report Scheduler** (`reportscheduler.tsx`)  
-  Build and schedule PDF/CSV reports, recurrence settings  
-- **Alert Settings** (`alertsettings.tsx`)  
-  Configure real-time alerts, email/webhook notifications  
-- **Workspace Manager** (`workspacemanager.tsx`)  
-  Create workspaces, assign roles, switch tenants  
+- **authentication.tsx**  
+  Email/password login, OAuth2 connectors, JWT handling.
+
+- **onboarding.tsx**  
+  User profile setup, niche selection, GA/Search Console OAuth flow.
+
+- **dashboard.tsx**  
+  Filterable trend charts, drill-downs, loading skeletons.
+
+- **reportscheduler.tsx**  
+  Visual report builder, recurrence settings, PDF/CSV export.
+
+- **alertsettings.tsx**  
+  Real-time alert configuration via email/webhooks.
+
+- **workspacemanager.tsx**  
+  Workspace creation, user roles, and access control.
 
 ### Layout & Shared UI
 
-- **Header** (`header.tsx`)  
-- **Sidebar** (`sidebar.tsx`)  
-- **ErrorBoundary** (`errorboundary.tsx`)  
-- **LoadingSpinner** (`loadingspinner.tsx`)  
-- **NotFound (404)** (`notfound.tsx`)  
-- **AccessDenied (403)** (`accessdenied.tsx`)  
+- **header.tsx** / **sidebar.tsx**  
+  App chrome with navigation, search, theme toggle.
 
-### Services
+- **errorboundary.tsx**  
+  Global React error catcher with fallback UI.
 
-- **ApiClient** (`apiclient.ts`)  
-  Axios HTTP client with retry, circuit breaker, tenant header  
-- **AuthService** (`authservice.ts`)  
-  Login, logout, token refresh, role checks  
-- **DataIngestionService** (`dataingestionservice.ts`)  
-  Fetch & cache LLM SEO Trends, GA & Search Console data  
-- **ScoringService** (`scoringservice.ts`)  
-  Topic scoring & prioritization algorithm  
-- **ReportService** (`reportservice.ts`)  
-  PDF/CSV generation, scheduling, S3 storage  
-- **WorkspaceService** (`workspaceservice.ts`)  
-  Multi-tenant workspace CRUD & isolation  
-- **NotificationService** (`notificationservice.ts`)  
-  Email/webhook dispatch with backoff  
-- **AuditService** (`auditservice.ts`)  
-  Tenant-aware action logging  
+- **loadingspinner.tsx**  
+  Universal loading indicator.
+
+- **notfound.tsx** / **accessdenied.tsx**  
+  Custom 404 and 403 pages.
 
 ---
 
 ## Dependencies
 
-- React 18  
-- TypeScript  
-- React Router  
+- React 18+  
+- React Router DOM  
 - Axios  
-- Chart.js / Recharts / D3 (choose one)  
-- JWT decode  
-- OAuth2 client  
-- AWS SDK (S3, SES) / SendGrid SDK  
-- classnames  
-- styled-components / Tailwind CSS  
+- Chart.js (or D3.js)  
+- Tailwind CSS / Styled-Components  
+- JWT Decode  
+- Dotenv  
+- AWS SDK (S3, SES)  
+- SendGrid (optional)  
 - Jest & React Testing Library  
-- ESLint & Prettier  
 
-See `package.json` for full list.
+See full list in `package.json`.
 
 ---
 
 ## Environment Variables
 
-Create a `.env` file:
-
-```bash
-REACT_APP_API_BASE_URL=
-REACT_APP_OAUTH_CLIENT_ID=
-REACT_APP_OAUTH_REDIRECT_URI=
-AWS_S3_BUCKET=
-AWS_REGION=
-AWS_ACCESS_KEY_ID=
-AWS_SECRET_ACCESS_KEY=
-EMAIL_SERVICE_API_KEY=
+```ini
+REACT_APP_API_BASE_URL=https://api.yourdomain.com
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+OAUTH_REDIRECT_URI=https://app.yourdomain.com/oauth/callback
+AWS_S3_BUCKET=seo-trend-reports
+AWS_REGION=us-east-1
+AWS_ACCESS_KEY_ID=XXX
+AWS_SECRET_ACCESS_KEY=XXX
+SENDGRID_API_KEY=XXX
 ```
 
 ---
 
-## Testing
+## Development & Testing
 
-- **Unit Tests**: `npm run test`  
-- **Coverage**: ensure >80% coverage  
+- **Linting**  
+  ```bash
+  npm run lint
+  ```
+
+- **Unit Tests**  
+  ```bash
+  npm test
+  ```
+
+- **Type Checking**  
+  ```bash
+  npm run typecheck
+  ```
 
 ---
 
 ## CI/CD & Deployment
 
-- **Lint & Test** on each PR  
-- **Build** & **Deploy** to staging/production via GitHub Actions or your preferred pipeline  
-- **Auto-invalidate** CDN cache on new release  
+- **Pre-commit hooks:** ESLint, Prettier  
+- **GitHub Actions:**  
+  - `lint`  
+  - `test`  
+  - `build`  
+  - `deploy` to staging/production  
+
+See `.github/workflows/` for pipeline definitions.
 
 ---
 
 ## Contributing
 
-1. Fork the repository  
-2. Create a feature branch (`git checkout -b feature/xyz`)  
-3. Commit your changes (`git commit -m "feat: add xyz"`)  
-4. Push to branch (`git push origin feature/xyz`)  
+1. Fork the repo  
+2. Create a feature branch (`git checkout -b feature/awesome`)  
+3. Commit your changes (`git commit -m 'Add awesome feature'`)  
+4. Push to your branch (`git push origin feature/awesome`)  
 5. Open a Pull Request  
 
-Please read our [CONTRIBUTING.md] if available.
+Please follow the [Code of Conduct](CODE_OF_CONDUCT.md) and fill out our [PR template](.github/PULL_REQUEST_TEMPLATE.md).
 
 ---
 
 ## License
 
-This project is licensed under the MIT License. See the [LICENSE](./LICENSE) file for details.
+This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
+
+---
+
+**Enjoy building better SEO strategies with real-time, data-driven insights!**

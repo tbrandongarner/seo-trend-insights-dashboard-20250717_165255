@@ -1,0 +1,133 @@
+const ACCESS_TOKEN_KEY = 'auth_access_token'
+
+let accessToken: string | null = null
+let expiresAt: number | null = null
+let refreshPromise: Promise<AuthToken> | null = null
+
+async function login(email: string, password: string): Promise<AuthToken> {
+  const response = await fetch('/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ email, password }),
+  })
+  if (!response.ok) {
+    throw new Error('Login failed')
+  }
+  const data = await response.json()
+  const token: AuthToken = {
+    accessToken: data.accessToken,
+    expiresAt: Date.now() + data.expiresIn * 1000,
+  }
+  saveToken(token)
+  return token
+}
+
+async function logout(): Promise<void> {
+  try {
+    await fetch('/auth/logout', {
+      method: 'POST',
+      credentials: 'include',
+    })
+  } catch {
+    // ignore
+  } finally {
+    clearToken()
+  }
+}
+
+async function refreshToken(): Promise<AuthToken> {
+  if (refreshPromise) {
+    return refreshPromise
+  }
+  refreshPromise = (async () => {
+    const response = await fetch('/auth/refresh', {
+      method: 'POST',
+      credentials: 'include',
+    })
+    if (!response.ok) {
+      throw new Error('Token refresh failed')
+    }
+    const data = await response.json()
+    const token: AuthToken = {
+      accessToken: data.accessToken,
+      expiresAt: Date.now() + data.expiresIn * 1000,
+    }
+    saveToken(token)
+    return token
+  })()
+  try {
+    return await refreshPromise
+  } finally {
+    refreshPromise = null
+  }
+}
+
+async function getToken(): Promise<string | null> {
+  if (!accessToken || !expiresAt) {
+    const stored = Cookies.get(ACCESS_TOKEN_KEY)
+    if (stored) {
+      accessToken = stored
+      // expiresAt must be reloaded from memory; if unavailable, force refresh
+      expiresAt = Date.now() - 1
+    }
+  }
+  if (!accessToken || expiresAt === null) {
+    return null
+  }
+  if (Date.now() >= expiresAt) {
+    try {
+      const newToken = await refreshToken()
+      return newToken.accessToken
+    } catch {
+      clearToken()
+      return null
+    }
+  }
+  return accessToken
+}
+
+async function isAuthenticated(): Promise<boolean> {
+  const token = await getToken()
+  return token !== null
+}
+
+function hasRole(role: string): boolean {
+  const token = accessToken || Cookies.get(ACCESS_TOKEN_KEY)
+  if (!token) {
+    return false
+  }
+  try {
+    const payload: any = jwtDecode(token)
+    const roles: string[] = Array.isArray(payload.roles) ? payload.roles : []
+    return roles.includes(role)
+  } catch {
+    return false
+  }
+}
+
+function saveToken(token: AuthToken): void {
+  accessToken = token.accessToken
+  expiresAt = token.expiresAt
+  Cookies.set(ACCESS_TOKEN_KEY, token.accessToken, {
+    expires: new Date(token.expiresAt),
+    secure: true,
+    sameSite: 'Strict',
+    path: '/',
+  })
+}
+
+function clearToken(): void {
+  accessToken = null
+  expiresAt = null
+  Cookies.remove(ACCESS_TOKEN_KEY, { path: '/' })
+}
+
+export const AuthService = {
+  login,
+  logout,
+  refreshToken,
+  getToken,
+  isAuthenticated,
+  hasRole,
+}

@@ -1,0 +1,60 @@
+const navItems: NavItem[] = [
+  { label: 'Dashboard', path: '/dashboard', icon: <FaTachometerAlt /> },
+  { label: 'Trends', path: '/trends', icon: <FaChartLine /> },
+  { label: 'Analytics', path: '/analytics', icon: <FaFileAlt /> },
+  { label: 'Reports', path: '/reports', icon: <FaFileAlt /> },
+  { label: 'Settings', path: '/settings', icon: <FaCogs /> }
+]
+
+export default function Sidebar(): JSX.Element {
+  const [collapsed, setCollapsed] = useState<boolean>(() =>
+    typeof window !== 'undefined' ? window.innerWidth < 768 : false
+  )
+
+  const toggleSidebar = useCallback(() => {
+    setCollapsed(prev => !prev)
+  }, [])
+
+  useEffect(() => {
+    const handleResize = () => {
+      setCollapsed(window.innerWidth < 768)
+    }
+    window.addEventListener('resize', handleResize)
+    return () => {
+      window.removeEventListener('resize', handleResize)
+    }
+  }, [])
+
+  return (
+    <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
+      <div className="sidebar-header">
+        {!collapsed && <div className="sidebar-logo">SEO Trend Insights</div>}
+        <button
+          type="button"
+          className="sidebar-toggle"
+          onClick={toggleSidebar}
+          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        >
+          {collapsed ? <FaChevronRight /> : <FaChevronLeft />}
+        </button>
+      </div>
+      <nav className="sidebar-nav">
+        <ul>
+          {navItems.map(item => (
+            <li key={item.path}>
+              <NavLink
+                to={item.path}
+                className={({ isActive }) =>
+                  `nav-item${isActive ? ' active' : ''}`
+                }
+              >
+                <span className="nav-icon">{item.icon}</span>
+                {!collapsed && <span className="nav-label">{item.label}</span>}
+              </NavLink>
+            </li>
+          ))}
+        </ul>
+      </nav>
+    </aside>
+  )
+}
